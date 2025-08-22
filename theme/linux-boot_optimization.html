@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<!--[if lt IE 7]>      <html class="no-js lt-ie9 lt-ie8 lt-ie7"> <![endif]-->
+<!--[if IE 7]>         <html class="no-js lt-ie9 lt-ie8"> <![endif]-->
+<!--[if IE 8]>         <html class="no-js lt-ie9"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js"> <!--<![endif]-->
+    <head>
+        <meta charset="utf-8">
+        <title>    Linux-boot_optimization
+</title>
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link href='https://fonts.googleapis.com/css?family=Gentium+Book+Basic|Merriweather:400,300' rel='stylesheet' type='text/css'>
+        <link rel="stylesheet" href="/theme/css/cid.css">
+    </head>
+    <body>
+        <!--[if lt IE 7]>
+            <p class="chromeframe">You are using an <strong>outdated</strong> browser. Please <a href="http://browsehappy.com/">upgrade your browser</a> or <a href="http://www.google.com/chromeframe/?redirect=true">activate Google Chrome Frame</a> to improve your experience.</p>
+        <![endif]-->
+
+            <div class="container">
+
+<header class="blog-header">
+    <h1><a href="">UNDERSTANDING PENGUINS AND PUFFERS</a></h1>
+    <p> Sharing the knowledge of Linux & OpenBSD as I go deeper </p>
+    <nav>
+        <a href="/">INDEX</a>
+        <a href="/archives">ARCHIVES</a>
+        <a href="/categories">CATEGORIES</a>
+    </nav>
+</header>
+
+    <div class="post">
+
+        <header>
+            <h1>Linux-boot_optimization</h1>
+            <p class="date">Written on <time datetime="2025-08-20T18:20:00+05:30">Aug 20, 2025</time></p>
+        </header>
+
+        <article>
+            <p>I wanted to fiddle around with compiling kernel, u-boot, busybox and merging
+all into an SD card. While doing that I saw my boot time come to around
+<strong>7 seconds</strong>. The things that caught my eye in the dmesg logs.</p>
+<ul class="simple">
+<li>Many modules are getting loaded which I don't seem to be using.</li>
+<li>Somehow my root filesystem is taking too long to mount.</li>
+</ul>
+<div class="section" id="optimizing-modules">
+<h2>Optimizing Modules</h2>
+<p>I Thought if I could just set the modules to <strong>&lt;N&gt;</strong> at the time of
+menuconfig, it would work.</p>
+<p>See the thing is, Most of the time we are using defconfig files, with so many
+inter-dependent config variables, it might get too hard, to consistently
+build such a kernel configuration. Perhaps you could try, as it might save some
+milli-seconds in booting, due to reduced size of <code>du -sh /lib/modules</code> or
+<code>du -sh /boot/zImage</code>.</p>
+<p>But the best bet will be to use a <strong>custom Device-tree</strong>. Unused hardware can
+be removed from it, which will ensure correlated modules won't be loaded.</p>
+<p>Steps:</p>
+<ul class="simple">
+<li>Go to base Linux directory where you can see <strong>arch</strong>, <strong>scripts</strong>. Then save
+this path. <code>export CURR=$(pwd)</code></li>
+<li>Go to the dts folder. For me it was
+<code>cd ${CURR}/arch/arm/boot/dts/ti/omap</code></li>
+<li>Considering beaglebone board as the device <code>cpp -nostdinc -undef -x
+-assembler-with-cpp -I./ -I${CURR}/include am335x-boneblack.dts
+am335x-boneblack.dts.cpp</code>. Now the pre-processed file is created.</li>
+<li>Now edit out hardware which is not needed. There is also a way to disable
+using the keyword <strong>status</strong>, but at this point I am not sure of where to put
+the keyword.</li>
+<li>Compile the device tree. <code>.${CURR}/scripts/dtc/dtc -&#64; -I dts -O dtb -i
+am335-boneblack.dts.cpp -o am335-boneblack.dtb</code>. The <strong>&#64;</strong> option is used to
+help later in dt-overlay support.</li>
+<li>Now just copy the output dtb file to your boot device's boot partition.</li>
+<li>Now check boot time, you could use this code as init application in</li>
+</ul>
+<div class="highlight"><pre><span></span><span class="cm">/* File: time_to_boot.c */</span>
+<span class="cp">#include</span><span class="cpf">&lt;time.h&gt;</span>
+<span class="cp">#include</span><span class="cpf">&lt;stdio.h&gt;</span>
+<span class="cp">#include</span><span class="cpf">&lt;unistd.h&gt;</span>
+<span class="cp">#include</span><span class="cpf">&lt;stdint.h&gt;</span>
+<span class="kt">int</span><span class="w"> </span><span class="nf">main</span><span class="p">(){</span>
+<span class="w">        </span><span class="k">struct</span><span class="w"> </span><span class="nc">timespec</span><span class="w"> </span><span class="n">ts</span><span class="p">;</span><span class="cm">/* time_t tv_sec ; long tv_nsec ; */</span>
+<span class="w">        </span><span class="k">while</span><span class="p">(</span><span class="mi">1</span><span class="p">){</span>
+<span class="w">                </span><span class="cm">/* dmesg uses Monotonic clock to print logs */</span>
+<span class="w">                </span><span class="n">clock_gettime</span><span class="p">(</span><span class="n">CLOCK_MONOTONIC</span><span class="p">,</span><span class="o">&amp;</span><span class="n">ts</span><span class="p">);</span>
+<span class="w">                </span><span class="cm">/* sec is time_t and nsec is long */</span>
+<span class="w">                </span><span class="n">printf</span><span class="p">(</span><span class="s">&quot;sec:%jd nsec:%09ld</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">,</span><span class="w">  </span><span class="p">(</span><span class="kt">intmax_t</span><span class="p">)</span><span class="n">ts</span><span class="p">.</span><span class="n">tv_sec</span><span class="p">,</span>
+<span class="w">                                                </span><span class="n">ts</span><span class="p">.</span><span class="n">tv_nsec</span><span class="p">);</span>
+<span class="w">                </span><span class="n">sleep</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="cm">/* shouldn&#39;t reach here */</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="mi">-1</span><span class="p">;</span>
+<span class="p">}</span>
+</pre></div>
+<p>Using this code you can check the boot time, just compile it
+<code>${CROSS_COMPILE}gcc -static -o init time_to_boot.c</code>. This command will
+create a static binary (independant of dynamic libraries). This should be
+placed inside /sbin, doing so the kernel will look at /sbin/init and spawn it
+as the first process ( which usually was the busybox symlink).</p>
+</div>
+<div class="section" id="checking-filesystem">
+<h2>Checking Filesystem</h2>
+<p>In embedded system development, sometimes I saw myself getting stuck due to no
+console, due to which I had to poweroff using board off button. This might have
+caused the ext4 file system to get it's sanity broken. Do run
+<code>fsck /dev/sdxn</code>.
+Fsck saved me a lot of time. Just due to filesystem issue I was getting a 5 sec
+boot penalty.</p>
+</div>
+<div class="section" id="booting-via-ram-disk">
+<h2>Booting via ram-disk</h2>
+<p>I felt in the case that rootfs has become broken. Atleast there could be a
+console before that. What if we boot into a stable r/o system, and things such
+as logging, docs anything related to data tbh, is coalesced into the rootfs. In
+this way whenever something happens to the rootfs partition, the system is
+still working.
+Also another case to think about: Let's assume your device is a camera, the
+time you push the power-on button, the expectation is to see a viewfinder
+screen, ready to click a picture. So if I were to look at old photos, I perhaps
+could give it a wait to load up the disk.</p>
+<ul class="simple">
+<li>To create a ramdisk we'll have to first create a file and decide on a size.
+Create the file <code>touch initrd.img</code>. Fill in with zeroes
+<code>dd if=/dev/zero of=initrd.img bs=1024 count=16000</code> this will create
+16MiB size of a file.</li>
+<li>Create a mount point <code>mkdir initrd.mount</code>. And then mount it as a tmpfs
+<code>sudo mount -o size=16M -t tmpfs initrd.img initrd.mount</code>.</li>
+<li>Now you can use it and fill it with utils, such as busybox, modules, vdso.</li>
+<li>Unmount it <code>sudo umount initrd.mount</code>. Save initrd.img in boot
+partition.</li>
+<li>In u-boot, edit either the uEnv.txt or u-boot's internal FAT file using shell
+, the kernel bootargs (command-line parameters) need to be changed to
+boot from the ramdisk. Change root to <code>root=/dev/ram0</code>.</li>
+<li>Also the bootcmd will need to change. If earlier the bootcmd was
+<code>load mmc 0:1 0x81000000 zImage; load mmc 0:1 0x82000000
+am335-boneblack.dtb; bootz 0x81000000 - 0x82000000;</code> , now it needs to be
+<code>load mmc 0:1 0x81000000 zImage; load mmc 0:1 0x82000000
+am335x-boneblack.dtb; load mmc 0:1 0x83000000 initrd.img;
+bootz 0x81000000 0x83000000 0x82000000</code>. There is also a way to specify
+the option <code>initrd=</code> in the kernel command line params, which I will be
+exploring later.</li>
+<li>The init application can now be made to mount the data partition 'root' to
+the ramdisk.</li>
+</ul>
+</div>
+<div class="section" id="conclusion">
+<h2>Conclusion</h2>
+<p>I saw a boot time of 0.5 seconds from the u-boot handoff to init program. There
+also is path to reduce u-boot overhead, which also should be seen to. In my
+personal opinion, for embedded devices, u-boot is good for development. But for
+shipping product u-boot is quite chunky. I feel there might be a possilibity
+of using u-boot sources to create a custom binary ( MLO in the case
+of beaglebone), that initializes the DRAM and only supports 2 commands
+<code>load</code> and <code>bootz</code>.</p>
+<p>by Sidharth Seela</p>
+</div>
+
+        </article>
+
+        <footer>
+            <p>This entry is posted in <a href="/category/linux.html">Linux</a>.</p>
+        </footer>
+
+
+    </div>
+
+
+<footer class="blog-footer">
+
+    <ul class="nav">
+            <li><a href="mailto:sidharthseela@gmail.com">Mail</a></li>
+            <li><a href="https://realtimedesign.org">Services</a></li>
+            <li><a href="https://www.github.com/sidharth-458">Github</a></li>
+            <li><a href="https://linkedin.com/in/sidharth-seela">Linkedin</a></li>
+    </ul>
+
+    <p class="disclaimer">
+        Site built using ReST files, with the help of Pelican & cid-theme
+    </p>
+</footer>
+            </div>
+    </body>
+</html>
