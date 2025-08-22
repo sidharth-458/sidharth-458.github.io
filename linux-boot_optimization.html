@@ -42,11 +42,11 @@ all into an SD card. While doing that I saw my boot time come to around
 <strong>7 seconds</strong>. The things that caught my eye in the dmesg logs.</p>
 <ul class="simple">
 <li>Many modules are getting loaded which I don't seem to be using.</li>
-<li>Somehow my root filesystem is taking too long to mount.</li>
+<li>Somehow my root file-system is taking too long to mount.</li>
 </ul>
 <div class="section" id="optimizing-modules">
 <h2>Optimizing Modules</h2>
-<p>I Thought if I could just set the modules to <strong>&lt;N&gt;</strong> at the time of
+<p>I thought if I could just set the modules to <strong>&lt;N&gt;</strong> at the time of
 menuconfig, it would work.</p>
 <p>See the thing is, Most of the time we are using defconfig files, with so many
 inter-dependent config variables, it might get too hard, to consistently
@@ -94,12 +94,12 @@ help later in dt-overlay support.</li>
 </pre></div>
 <p>Using this code you can check the boot time, just compile it
 <code>${CROSS_COMPILE}gcc -static -o init time_to_boot.c</code>. This command will
-create a static binary (independant of dynamic libraries). This should be
+create a static binary (independent of dynamic libraries). This should be
 placed inside /sbin, doing so the kernel will look at /sbin/init and spawn it
 as the first process ( which usually was the busybox symlink).</p>
 </div>
-<div class="section" id="checking-filesystem">
-<h2>Checking Filesystem</h2>
+<div class="section" id="checking-file-system">
+<h2>Checking File-system</h2>
 <p>In embedded system development, sometimes I saw myself getting stuck due to no
 console, due to which I had to poweroff using board off button. This might have
 caused the ext4 file system to get it's sanity broken. Do run
@@ -109,7 +109,7 @@ boot penalty.</p>
 </div>
 <div class="section" id="booting-via-ram-disk">
 <h2>Booting via ram-disk</h2>
-<p>I felt in the case that rootfs has become broken. Atleast there could be a
+<p>I felt in the case that rootfs has become broken. At-least there could be a
 console before that. What if we boot into a stable r/o system, and things such
 as logging, docs anything related to data tbh, is coalesced into the rootfs. In
 this way whenever something happens to the rootfs partition, the system is
@@ -136,9 +136,9 @@ boot from the ramdisk. Change root to <code>root=/dev/ram0</code>.</li>
 am335-boneblack.dtb; bootz 0x81000000 - 0x82000000;</code> , now it needs to be
 <code>load mmc 0:1 0x81000000 zImage; load mmc 0:1 0x82000000
 am335x-boneblack.dtb; load mmc 0:1 0x83000000 initrd.img;
-bootz 0x81000000 0x83000000 0x82000000</code>. There is also a way to specify
-the option <code>initrd=</code> in the kernel command line params, which I will be
-exploring later.</li>
+bootz 0x81000000 0x83000000:16384000 0x82000000</code>. There is also a way to
+specify the option <code>initrd=</code> in the kernel command line params, which I
+will be exploring later.</li>
 <li>The init application can now be made to mount the data partition 'root' to
 the ramdisk.</li>
 </ul>
@@ -148,7 +148,7 @@ the ramdisk.</li>
 <p>I saw a boot time of 0.5 seconds from the u-boot handoff to init program. There
 also is path to reduce u-boot overhead, which also should be seen to. In my
 personal opinion, for embedded devices, u-boot is good for development. But for
-shipping product u-boot is quite chunky. I feel there might be a possilibity
+shipping product u-boot is quite chunky. I feel there might be a possibility
 of using u-boot sources to create a custom binary ( MLO in the case
 of beaglebone), that initializes the DRAM and only supports 2 commands
 <code>load</code> and <code>bootz</code>.</p>
