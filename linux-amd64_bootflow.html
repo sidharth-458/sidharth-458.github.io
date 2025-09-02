@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<!--[if lt IE 7]>      <html class="no-js lt-ie9 lt-ie8 lt-ie7"> <![endif]-->
+<!--[if IE 7]>         <html class="no-js lt-ie9 lt-ie8"> <![endif]-->
+<!--[if IE 8]>         <html class="no-js lt-ie9"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js"> <!--<![endif]-->
+    <head>
+        <meta charset="utf-8">
+        <title>    Linux-amd64_bootflow
+</title>
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link href='https://fonts.googleapis.com/css?family=Gentium+Book+Basic|Merriweather:400,300' rel='stylesheet' type='text/css'>
+        <link rel="stylesheet" href="/theme/css/cid.css">
+    </head>
+    <body>
+        <!--[if lt IE 7]>
+            <p class="chromeframe">You are using an <strong>outdated</strong> browser. Please <a href="http://browsehappy.com/">upgrade your browser</a> or <a href="http://www.google.com/chromeframe/?redirect=true">activate Google Chrome Frame</a> to improve your experience.</p>
+        <![endif]-->
+
+            <div class="container">
+
+<header class="blog-header">
+    <h1><a href="">UNDERSTANDING PENGUINS AND PUFFERS</a></h1>
+    <p> Sharing the knowledge of Linux & OpenBSD as I go deeper </p>
+    <nav>
+        <a href="/">INDEX</a>
+        <a href="/archives">ARCHIVES</a>
+        <a href="/categories">CATEGORIES</a>
+    </nav>
+</header>
+
+    <div class="post">
+
+        <header>
+            <h1>Linux-amd64_bootflow</h1>
+            <p class="date">Written on <time datetime="2025-09-01T08:30:00+05:30">Sep 01, 2025</time></p>
+        </header>
+
+        <article>
+            <div class="section" id="intel-amd-fab">
+<h2>INTEL/AMD FAB</h2>
+<p>The processor chipset has an extra secure co-processor.
+For Intel, Intel Managment Engine, it is of the quark series MMU processor
+running minix.
+For AMD, Platform security Processor, it is an arm-cortex running Kinibi OS.
+It is a section of the chip with unrestricted access to peripheral and buses.</p>
+<p>Uses:</p>
+<ul class="simple">
+<li>The idea is to DRM, in cases of creating just 1 chip-model and locking down
+cores for cheaper chipsets.</li>
+<li>And to monitor (Hi FBI bro!!). (The Intel in Intel means Intel).</li>
+<li>To provide RNG.</li>
+<li>Root-of-trust for boot process, module signing, enabling TEE.</li>
+<li>soft-TPM.</li>
+</ul>
+<p>The firmware lives inside the external flash/eeprom, along with UEFI/BIOS.</p>
+</div>
+<div class="section" id="motherboard-manufacturer">
+<h2>MOTHERBOARD MANUFACTURER</h2>
+<p>The motherboard will flash an EEPROM with UEFI/BIOS and Secure firmware.</p>
+</div>
+<div class="section" id="pc-building">
+<h2>PC BUILDING</h2>
+<ul class="simple">
+<li>The new chipset is put on the motherboard.</li>
+<li>The moment the CMOS battery is placed. The IME engine will start and look for
+external flash, it will start eXecute-In-Place. And start signing everything,
+and make records in the flash.</li>
+</ul>
+</div>
+<div class="section" id="standby-power-init">
+<h2>STANDBY POWER INIT</h2>
+<ul class="simple">
+<li>Connected to AC with Vrms.</li>
+<li>Put through low pass filters.</li>
+<li>Rectified to DC to give Vdc = sqrt(2)*Vrms.</li>
+<li>For a moment, Vdc is reduced to 5V using a resistor, the power goes to
+switching controller. That momentary power, starts up Standby chip and chops
+Vdc,through the standby flyback transformer. The flyback powers the chip now,
+the chip stops taking power from resistor line using or-ing stategy. Now the
+resistor line is used to sense input Vdc. And optocoupler used to sense
+output Vsb.</li>
+<li>The 5 volt Vsb rail is live.</li>
+<li><strong>PS_ON#</strong> known as &quot;soft power on signal&quot; line is pulled up to Vsb.</li>
+<li>5 volt USB-PD is live.</li>
+<li>Wake-on-LAN is live.</li>
+<li>Vsb hijacks CMOS power.</li>
+<li>if CMOS battery had no power, IME starts now and signs everything.</li>
+</ul>
+</div>
+<div class="section" id="primary-power-init">
+<h2>PRIMARY POWER INIT</h2>
+<ul class="simple">
+<li>Power button pushed, the <strong>PS_ON#</strong> is grounded. This signal is 'seen' by the
+standby chip.</li>
+<li>Standby chip switches on primary chip and primary line.</li>
+<li>Primary chip starts switching to output primary voltages (3.3,5,12). Many
+vendors have different ways of producing primary voltages.</li>
+<li>The primary chip tries to stabilize output voltages.</li>
+<li>After 500ms, the primary chip pulls the <strong>PWR_OK</strong> line.</li>
+</ul>
+<p>Checkout more in this <a class="reference external" href="https://www.righto.com/2021/05/teardown-of-pc-power-supply.html">Ken Shirriff's blogpost</a></p>
+</div>
+<div class="section" id="cpu-wakes-up">
+<h2>CPU wakes up</h2>
+<ul class="simple">
+<li>The <strong>PWR_OK</strong> line acts as active high <strong>ENABLE</strong> for the chipset.</li>
+<li>The chip's Process Control Register has Protection Enable as 0. <strong>Real mode</strong>
+is on. 32-bit addressing from now.</li>
+<li>the control now is forced by Instruction pointer to go to 0xfffffff0, which
+is at the eeprom/flash area.</li>
+</ul>
+</div>
+<div class="section" id="cpu-bootstrapping">
+<h2>CPU Bootstrapping</h2>
+<ul class="simple">
+<li>In the last 16 bytes of eeprom/flsah , the processor finds instruction to
+jump to IP combination , such as <code>JMP FAR 0xeabc20d0</code>, which jumps to
+start of BIOS/UEFI partition in EEPROM/FLASH. (running XIP)</li>
+</ul>
+</div>
+<div class="section" id="bios-uefi">
+<h2>BIOS/UEFI</h2>
+<p>BIOS means boot binary was same for all vendors.
+UEFI means boot binary can be customised.</p>
+<p>Steps inside BIOS/UEFI:</p>
+<ul class="simple">
+<li>POST</li>
+<li>Start DDR, init modules required for boot order.</li>
+<li>Load in I/O modules</li>
+<li>If init flag is set in EEPROM/Flash, then come load up the BIOS/UEFI screen.
+User needs to edit boot order, and features enablement.</li>
+<li>If not, then control flow goes to the available boot device in boot priority.</li>
+<li>The boot file is placed in RAM.</li>
+</ul>
+</div>
+<div class="section" id="grub">
+<h2>GRUB</h2>
+<ul class="simple">
+<li>The grub start in RAM.</li>
+<li>Uses EFI modules and start init and running boot script.</li>
+<li>When the script is over and the next args and os file is placed in RAM.</li>
+<li>The register bank holds the cmd-args pointer, initramfs pointer for linux.
+The dtb pointer is already known to be inside the NVRAM, which was
+dynamically created by IME.</li>
+<li>The BIOS tell UEFI that OS taking over control. The UEFI/Secure coproc/TEE
+register time taken, modules used, and other parameters to validate
+if there were any anomaly.</li>
+</ul>
+</div>
+<div class="section" id="rich-execution-environment-os">
+<h2>RICH EXECUTION ENVIRONMENT (OS)</h2>
+<ul class="simple">
+<li>Linux start unpacking itself, requesting mode change, MMU-paging/dynamic
+inits, sets up data structures, interrupts, system call interface, timer,
+console.</li>
+<li>Load in initramfs.</li>
+<li>Init starts background services.</li>
+<li>Load in rootfs.</li>
+<li>Init does pivot_root and makes rootfs '/'.</li>
+<li>Execs new init.</li>
+</ul>
+<div class="highlight"><pre><span></span><span class="go">Debian GNU/Linux 13 t480 tty1</span>
+<span class="go">t480 login: sidharth_seela</span>
+</pre></div>
+</div>
+
+        </article>
+
+        <footer>
+            <p>This entry is posted in <a href="/category/linux.html">Linux</a>.</p>
+        </footer>
+
+
+    </div>
+
+
+<footer class="blog-footer">
+
+    <ul class="nav">
+            <li><a href="mailto:sidharthseela@gmail.com">Mail</a></li>
+            <li><a href="https://realtimedesign.org">Services</a></li>
+            <li><a href="https://www.github.com/sidharth-458">Github</a></li>
+            <li><a href="https://linkedin.com/in/sidharth-seela">Linkedin</a></li>
+    </ul>
+
+    <p class="disclaimer">
+        Site built using ReST files, with the help of Pelican & cid-theme
+    </p>
+</footer>
+            </div>
+    </body>
+</html>
