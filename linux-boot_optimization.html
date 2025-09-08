@@ -62,7 +62,7 @@ this path. <code>export CURR=$(pwd)</code></li>
 <li>Go to the dts folder. For me it was
 <code>cd ${CURR}/arch/arm/boot/dts/ti/omap</code></li>
 <li>Considering beaglebone board as the device <code>cpp -nostdinc -undef -x
--assembler-with-cpp -I./ -I${CURR}/include am335x-boneblack.dts
+assembler-with-cpp -I./ -I${CURR}/include am335x-boneblack.dts
 am335x-boneblack.dts.cpp</code>. Now the pre-processed file is created.</li>
 <li>Now edit out hardware which is not needed. There is also a way to disable
 using the keyword <strong>status</strong>, but at this point I am not sure of where to put
@@ -143,13 +143,71 @@ will be exploring later.</li>
 the ramdisk.</li>
 </ul>
 </div>
+<div class="section" id="u-boot-s-falcon">
+<h2>U-boot's Falcon</h2>
+<p>In Falcon boot, The SPL (i.e MLO) directly loads the Kernel, DTB, Ramdisk
+appends the kernel command-line and boots using <code>bootm</code>. The gist is as
+follows:</p>
+<ul class="simple">
+<li>Edit flags in uboot menuconfig.
+<code>CONFIG_SPL_LEGACY_IMAGE_FORMAT=y</code>,
+<code>CONFIG_LEGACY_IMAGE_FORMAT=y</code>,
+<code># CONFIG_SPL_ENV_IS_NOWHERE is not set</code>,
+<code>CONFIG_SPL_ENV_IS_IN_FAT</code>.</li>
+<li>Let board boot as normal, interrupt at u-boot proper's shell. Now load your
+dtb ramdisk kernel into memory areas.</li>
+<li>Now create an args file using <code>spl export fdt &lt;kernaddr&gt; &lt;rdaddr&gt;
+&lt;dtbaddr&gt;</code></li>
+<li>Now read logs, there will be a final line saying args placed into RAM at some
+address and ending at another address. So use this addresses and calculate
+size in hex ,such as 45d3. Then place file in bootfs using
+<code>fatwrite mmc 0:1 0x&lt;startaddr&gt; args &lt;size&gt;</code>.</li>
+<li>Now tell SPL that we want it to boot directly using <code>setenv boot_os 1</code>.</li>
+<li>Save!!! <code>saveenv</code>. Note: bootcmd should be appropriately set.</li>
+<li>Now you can safely reset.</li>
+<li>Voila</li>
+</ul>
+</div>
+<div class="section" id="memory-technology-speed">
+<h2>Memory technology &amp; speed</h2>
+<p>We have technologies such as SDMMC, EMMC, NOR-Flash, NAND-Flash, and in them a
+variety of protocols like OSPI,QSPI,SPI and more. The only thing at the end of
+the day is to get an evaluation board if you are going to build your own board.
+Test all interfaces for speed.
+Also technology upgrade every year. A 5 yr old SD card gives 1MB/s. But a new
+one with gives around 2-3MB/s. A huge saving. Your kernel,intramfs, dtb files
+are gonna come around to be more than 7 MB easily.</p>
+</div>
+<div class="section" id="a-better-option-fast-but-small-slow-but-huge">
+<h2>A better option: fast but small, slow but huge</h2>
+<p>We can have 2 devices. One fast with small memory footprint, so it costs a bit
+less, place bootfs and ramdisk. In the other device we have our said rootfs
+which complements the initramfs. No need to pivot_root, plan your rootfs that
+it doesn't coincide with initramfs and mount all adjacently.
+Choose init processes such that it wont require dynamic libraries. If you want
+those dynamic libraries then store it in the faster, now larger memory device.</p>
+</div>
+<div class="section" id="pack-the-kernel">
+<h2>Pack the kernel</h2>
+<p>Compression statistics is a deeply debated and fuzzy topic to ascertain. Try
+running benchmarks on different methods. Compare all with load time +
+decompression time.</p>
+<p>A, trust me bro, advice: Pls dont directly load vmlinux, that's incredibly slow
+as the bottleneck is not decompression but storage to memory loads.</p>
+</div>
+<div class="section" id="future-work">
+<h2>Future work</h2>
+<p>Finding memory devices' speeds and getting a table ready for beaglebone black.
+I also got myself a pocket beagle 2, it's bootflow involves 3 different
+processors an R5, M4, A53, (Hmm.. that's more work to do).</p>
+</div>
 <div class="section" id="conclusion">
 <h2>Conclusion</h2>
 <p>I saw a boot time of 0.5 seconds from the u-boot handoff to init program. There
 also is path to reduce u-boot overhead, which also should be seen to. In my
 personal opinion, for embedded devices, u-boot is good for development. But for
-shipping product u-boot is quite chunky. I feel there might be a possibility
-of using u-boot sources to create a custom binary ( MLO in the case
+shipping product u-boot is quite chunky. I feel the possibility of using Falcon
+should be considered, I saw a second of overall boot time improvement.
 of beaglebone), that initializes the DRAM and only supports 2 commands
 <code>load</code> and <code>bootz</code>.</p>
 <p>by Sidharth Seela</p>
